@@ -1,0 +1,104 @@
+const prisma = require('../db/prisma');
+const ApiError = require('../utils/ApiError');
+const { comparePassword } = require('../utils/password');
+const { signAccessToken } = require('../utils/jwt');
+const { generateRefreshToken, hashRefreshToken } = require('../utils/refreshToken');
+const env = require('../config/env');
+
+async function findUserByEmail(email) {
+  const user = await prisma.users.findUnique({
+    where: { email },
+    include: { roles: true },
+  });
+  if (!user) return null;
+  return {
+    id: user.id,
+    email: user.email,
+    password_hash: user.password_hash,
+    full_name: user.full_name,
+    is_active: user.is_active,
+    role: user.roles.name,
+  };
+}
+
+async function storeRefreshToken(userId, hash, clientLabel) {
+  const expiresAt = new Date(Date.now() + env.jwt.refreshExpiresInDays * 24 * 60 * 60 * 1000);
+  await prisma.refresh_tokens.create({
+    data: {
+      user_id: userId,
+      token_hash: hash,
+      client_label: clientLabel || null,
+      expires_at: expiresAt,
+    },
+  });
+}
+
+async function login({ email, password, clientLabel }) {
+  const user = await findUserByEmail(email);
+  if (!user) {
+    throw ApiError.unauthorized('Invalid email or password', 'INVALID_CREDENTIALS');
+  }
+
+  const passwordMatches = await comparePassword(password, user.password_hash);
+  if (!passwordMatches) {
+    throw ApiError.unauthorized('Invalid email or password', 'INVALID_CREDENTIALS');
+  }
+
+  if (!user.is_active) {
+    throw ApiError.unauthorized(
+      "Inactive user account. Please contact support.",
+      "INACTIVE_ACCOUNT",
+    );
+  }
+
+  const accessToken = signAccessToken({ id: user.id, role: user.role });
+  const { raw: refreshToken, hash: refreshHash } = generateRefreshToken();
+  await storeRefreshToken(user.id, refreshHash, clientLabel);
+
+  return {
+    accessToken,
+    refreshToken,
+    user: { id: user.id, email: user.email, fullName: user.full_name, role: user.role },
+  };
+}
+
+async function refresh({ refreshToken, clientLabel }) {
+  const hash = hashRefreshToken(refreshToken);
+
+  const record = await prisma.refresh_tokens.findUnique({
+    where: { token_hash: hash },
+    include: { users: { include: { roles: true } } },
+  });
+
+  if (
+    !record ||
+    record.revoked_at ||
+    new Date(record.expires_at) < new Date() ||
+    !record.users.is_active
+  ) {
+    throw ApiError.unauthorized('Refresh token is invalid or expired', 'INVALID_REFRESH_TOKEN');
+  }
+
+  // Rotate: revoke the old refresh token and issue a new one. This
+  // limits how long a stolen refresh token remains useful.
+  await prisma.refresh_tokens.update({
+    where: { id: record.id },
+    data: { revoked_at: new Date() },
+  });
+
+  const accessToken = signAccessToken({ id: record.user_id, role: record.users.roles.name });
+  const { raw: newRefreshToken, hash: newHash } = generateRefreshToken();
+  await storeRefreshToken(record.user_id, newHash, clientLabel);
+
+  return { accessToken, refreshToken: newRefreshToken };
+}
+
+async function logout({ refreshToken }) {
+  const hash = hashRefreshToken(refreshToken);
+  await prisma.refresh_tokens.updateMany({
+    where: { token_hash: hash, revoked_at: null },
+    data: { revoked_at: new Date() },
+  });
+}
+
+module.exports = { login, refresh, logout, findUserByEmail };

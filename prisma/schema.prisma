@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model course_offerings {
+  id             Int             @id @default(autoincrement())
+  course_id      Int
+  term_id        Int
+  instructor_id  Int
+  section        String          @db.VarChar(10)
+  delivery_mode  String          @default("in_person") @db.VarChar(20)
+  room_id        Int?
+  capacity       Int
+  enrolled_count Int             @default(0)
+  created_at     DateTime        @default(now()) @db.Timestamptz(6)
+  courses        courses         @relation(fields: [course_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          users           @relation(fields: [instructor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rooms          rooms?          @relation(fields: [room_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  terms          terms           @relation(fields: [term_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  meeting_times  meeting_times[]
+
+  @@unique([course_id, term_id, section])
+  @@index([instructor_id], map: "idx_offerings_instructor")
+  @@index([room_id], map: "idx_offerings_room")
+  @@index([term_id], map: "idx_offerings_term")
+}
+
+model courses {
+  id               Int                @id @default(autoincrement())
+  program_id       Int?
+  code             String             @unique @db.VarChar(20)
+  title            String             @db.VarChar(255)
+  credit_hours     Int                @default(3) @db.SmallInt
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  course_offerings course_offerings[]
+  programs         programs?          @relation(fields: [program_id], references: [id], onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
+model meeting_times {
+  id                 Int              @id @default(autoincrement())
+  course_offering_id Int
+  room_id            Int?
+  instructor_id      Int?
+  day_of_week        Int              @db.SmallInt
+  start_time         DateTime         @db.Time(6)
+  end_time           DateTime         @db.Time(6)
+  course_offerings   course_offerings @relation(fields: [course_offering_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users              users?           @relation(fields: [instructor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rooms              rooms?           @relation(fields: [room_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([course_offering_id], map: "idx_meeting_times_offering")
+}
+
+model password_reset_tokens {
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  token_hash String    @db.VarChar(255)
+  expires_at DateTime  @db.Timestamptz(6)
+  used_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model programs {
+  id         Int        @id @default(autoincrement())
+  name       String     @db.VarChar(255)
+  code       String     @unique @db.VarChar(20)
+  department String?    @db.VarChar(255)
+  courses    courses[]
+  students   students[]
+}
+
+model refresh_tokens {
+  id           Int       @id @default(autoincrement())
+  user_id      Int
+  token_hash   String    @unique @db.VarChar(255)
+  client_label String?   @db.VarChar(100)
+  expires_at   DateTime  @db.Timestamptz(6)
+  revoked_at   DateTime? @db.Timestamptz(6)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  users        users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_refresh_tokens_user")
+}
+
+model role_audit_log {
+  id                                      Int      @id @default(autoincrement())
+  user_id                                 Int
+  changed_by                              Int
+  old_role_id                             Int?
+  new_role_id                             Int
+  created_at                              DateTime @default(now()) @db.Timestamptz(6)
+  users_role_audit_log_changed_byTousers  users    @relation("role_audit_log_changed_byTousers", fields: [changed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  roles_role_audit_log_new_role_idToroles roles    @relation("role_audit_log_new_role_idToroles", fields: [new_role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  roles_role_audit_log_old_role_idToroles roles?   @relation("role_audit_log_old_role_idToroles", fields: [old_role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_role_audit_log_user_idTousers     users    @relation("role_audit_log_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model roles {
+  id                                               Int              @id @default(autoincrement())
+  name                                             String           @unique @db.VarChar(50)
+  role_audit_log_role_audit_log_new_role_idToroles role_audit_log[] @relation("role_audit_log_new_role_idToroles")
+  role_audit_log_role_audit_log_old_role_idToroles role_audit_log[] @relation("role_audit_log_old_role_idToroles")
+  users                                            users[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model rooms {
+  id               Int                @id @default(autoincrement())
+  building         String             @db.VarChar(255)
+  room_number      String             @db.VarChar(50)
+  capacity         Int?
+  course_offerings course_offerings[]
+  meeting_times    meeting_times[]
+
+  @@unique([building, room_number])
+}
+
+model student_id_sequences {
+  year     Int @id
+  last_seq Int @default(0)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model students {
+  id                Int       @id @default(autoincrement())
+  user_id           Int       @unique
+  student_id        String?   @unique @db.VarChar(20)
+  program_id        Int?
+  admission_term_id Int?
+  status            String    @default("active") @db.VarChar(20)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  terms             terms?    @relation(fields: [admission_term_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  programs          programs? @relation(fields: [program_id], references: [id], onUpdate: NoAction)
+  users             users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([program_id], map: "idx_students_program")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model terms {
+  id               Int                @id @default(autoincrement())
+  name             String             @db.VarChar(50)
+  start_date       DateTime           @db.Date
+  end_date         DateTime           @db.Date
+  is_active        Boolean            @default(false)
+  course_offerings course_offerings[]
+  students         students[]
+}
+
+model users {
+  id                                              Int                     @id @default(autoincrement())
+  email                                           String                  @unique @db.VarChar(255)
+  password_hash                                   String                  @db.VarChar(255)
+  full_name                                       String                  @db.VarChar(255)
+  role_id                                         Int
+  is_active                                       Boolean                 @default(true)
+  created_at                                      DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at                                      DateTime                @default(now()) @db.Timestamptz(6)
+  course_offerings                                course_offerings[]
+  meeting_times                                   meeting_times[]
+  password_reset_tokens                           password_reset_tokens[]
+  refresh_tokens                                  refresh_tokens[]
+  role_audit_log_role_audit_log_changed_byTousers role_audit_log[]        @relation("role_audit_log_changed_byTousers")
+  role_audit_log_role_audit_log_user_idTousers    role_audit_log[]        @relation("role_audit_log_user_idTousers")
+  students                                        students?
+  roles                                           roles                   @relation(fields: [role_id], references: [id], onUpdate: NoAction)
+
+  @@index([role_id], map: "idx_users_role")
+}
