@@ -1,10 +1,10 @@
 const prisma = require('../db/prisma');
 const ApiError = require('../utils/ApiError');
-const { comparePassword } = require('../utils/password');
+const { comparePassword, hashPassword } = require('../utils/password');
 const { signAccessToken } = require('../utils/jwt');
 const { sendPasswordResetEmail } = require('../utils/emailer');
 const { generateRefreshToken, hashRefreshToken } = require('../utils/refreshToken');
-const { generateResetToken } = require('../utils/resetToken');
+const { generateResetToken, hashResetToken } = require('../utils/resetToken');
 const env = require('../config/env');
 
 const RESET_TOKEN_TTL_MINUTES = 30;
@@ -138,4 +138,36 @@ async function forgotPassword({ email }) {
   return env.nodeEnv !== 'production' ? { devResetToken: raw } : undefined;
 }
 
-module.exports = { login, refresh, logout, findUserByEmail, forgotPassword };
+async function resetPassword({ token, newPassword }) {
+  const hash = hashResetToken(token);
+
+  const record = await prisma.password_reset_tokens.findFirst({
+    where: { token_hash: hash },
+  });
+
+  if (!record || record.used_at || new Date(record.expires_at) < new Date()) {
+    throw ApiError.badRequest('Reset token is invalid or expired', 'INVALID_RESET_TOKEN');
+  }
+
+  const newHash = await hashPassword(newPassword);
+
+  await prisma.$transaction([
+    prisma.users.update({
+      where: { id: record.user_id },
+      data: { password_hash: newHash },
+    }),
+    prisma.password_reset_tokens.update({
+      where: { id: record.id },
+      data: { used_at: new Date() },
+    }),
+    // Changing the password invalidates every existing session -- if
+    // an account was compromised, this locks the old session out too,
+    // not just the password.
+    prisma.refresh_tokens.updateMany({
+      where: { user_id: record.user_id, revoked_at: null },
+      data: { revoked_at: new Date() },
+    }),
+  ]);
+}
+
+module.exports = { login, refresh, logout, findUserByEmail, forgotPassword, resetPassword };

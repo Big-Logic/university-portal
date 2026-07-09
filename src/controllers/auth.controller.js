@@ -34,4 +34,10 @@ const forgotPassword = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { login, refresh, logout, forgotPassword };
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token, newPassword } = req.body;
+  await authService.resetPassword({ token, newPassword });
+  res.status(200).json({ message: 'Password has been reset. Please log in again.' });
+});
+
+module.exports = { login, refresh, logout, forgotPassword, resetPassword };
