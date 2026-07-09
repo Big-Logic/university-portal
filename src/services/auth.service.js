@@ -1,9 +1,16 @@
-const prisma = require('../db/prisma');
-const ApiError = require('../utils/ApiError');
-const { comparePassword } = require('../utils/password');
-const { signAccessToken } = require('../utils/jwt');
-const { generateRefreshToken, hashRefreshToken } = require('../utils/refreshToken');
-const env = require('../config/env');
+const prisma = require("../db/prisma");
+const ApiError = require("../utils/ApiError");
+const { comparePassword } = require("../utils/password");
+const { signAccessToken } = require("../utils/jwt");
+const { sendPasswordResetEmail } = require("../utils/emailer");
+const {
+  generateRefreshToken,
+  hashRefreshToken,
+} = require("../utils/refreshToken");
+const { generateResetToken, hashResetToken } = require("../utils/resetToken");
+const env = require("../config/env");
+
+const RESET_TOKEN_TTL_MINUTES = 30;
 
 async function findUserByEmail(email) {
   const user = await prisma.users.findUnique({
@@ -22,7 +29,9 @@ async function findUserByEmail(email) {
 }
 
 async function storeRefreshToken(userId, hash, clientLabel) {
-  const expiresAt = new Date(Date.now() + env.jwt.refreshExpiresInDays * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(
+    Date.now() + env.jwt.refreshExpiresInDays * 24 * 60 * 60 * 1000,
+  );
   await prisma.refresh_tokens.create({
     data: {
       user_id: userId,
@@ -36,12 +45,18 @@ async function storeRefreshToken(userId, hash, clientLabel) {
 async function login({ email, password, clientLabel }) {
   const user = await findUserByEmail(email);
   if (!user) {
-    throw ApiError.unauthorized('Invalid email or password', 'INVALID_CREDENTIALS');
+    throw ApiError.unauthorized(
+      "Invalid email or password",
+      "INVALID_CREDENTIALS",
+    );
   }
 
   const passwordMatches = await comparePassword(password, user.password_hash);
   if (!passwordMatches) {
-    throw ApiError.unauthorized('Invalid email or password', 'INVALID_CREDENTIALS');
+    throw ApiError.unauthorized(
+      "Invalid email or password",
+      "INVALID_CREDENTIALS",
+    );
   }
 
   if (!user.is_active) {
@@ -58,7 +73,12 @@ async function login({ email, password, clientLabel }) {
   return {
     accessToken,
     refreshToken,
-    user: { id: user.id, email: user.email, fullName: user.full_name, role: user.role },
+    user: {
+      id: user.id,
+      email: user.email,
+      fullName: user.full_name,
+      role: user.role,
+    },
   };
 }
 
@@ -76,7 +96,10 @@ async function refresh({ refreshToken, clientLabel }) {
     new Date(record.expires_at) < new Date() ||
     !record.users.is_active
   ) {
-    throw ApiError.unauthorized('Refresh token is invalid or expired', 'INVALID_REFRESH_TOKEN');
+    throw ApiError.unauthorized(
+      "Refresh token is invalid or expired",
+      "INVALID_REFRESH_TOKEN",
+    );
   }
 
   // Rotate: revoke the old refresh token and issue a new one. This
@@ -86,7 +109,10 @@ async function refresh({ refreshToken, clientLabel }) {
     data: { revoked_at: new Date() },
   });
 
-  const accessToken = signAccessToken({ id: record.user_id, role: record.users.roles.name });
+  const accessToken = signAccessToken({
+    id: record.user_id,
+    role: record.users.roles.name,
+  });
   const { raw: newRefreshToken, hash: newHash } = generateRefreshToken();
   await storeRefreshToken(record.user_id, newHash, clientLabel);
 
@@ -101,4 +127,29 @@ async function logout({ refreshToken }) {
   });
 }
 
-module.exports = { login, refresh, logout, findUserByEmail };
+async function forgotPassword({ email }) {
+  const user = await findUserByEmail(email);
+
+  // Always behave the same way whether or not the email exists --
+  // otherwise this endpoint becomes a way to enumerate real accounts.
+  if (!user || !user.is_active) {
+    return;
+  }
+
+  const { raw, hash } = generateResetToken();
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+
+  await prisma.password_reset_tokens.create({
+    data: { user_id: user.id, token_hash: hash, expires_at: expiresAt },
+  });
+
+  await sendPasswordResetEmail(user.email, raw);
+
+  // Only surface the raw token directly in non-production environments,
+  // so the flow is testable end-to-end without real email
+  // infrastructure. In production this must never leave the server --
+  // the email is the only channel it should travel through.
+  return env.nodeEnv !== "production" ? { devResetToken: raw } : undefined;
+}
+
+module.exports = { login, refresh, logout, findUserByEmail, forgotPassword };
