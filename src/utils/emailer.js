@@ -4,9 +4,7 @@
 // function out when that's ready; nothing else in the codebase needs
 // to change since callers only depend on this function's signature.
 async function sendPasswordResetEmail(email, rawToken) {
-  console.log(
-    `[email] Password reset requested for ${email}. Token: ${rawToken}`,
-  );
+  console.log(`[email] Password reset requested for ${email}. Token: ${rawToken}`);
   // TODO: replace with real email provider integration.
 }
 
