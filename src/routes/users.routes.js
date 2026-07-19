@@ -3,7 +3,7 @@ const authenticate = require('../middleware/authenticate');
 const requireRole = require('../middleware/requireRole');
 const validate = require('../middleware/validate');
 const usersController = require('../controllers/users.controller');
-const { updateRoleSchema } = require('../validators/users.validators');
+const { createUserSchema, updateRoleSchema } = require('../validators/users.validators');
 const asyncHandler = require('../utils/asyncHandler');
 const prisma = require('../db/prisma');
 const ApiError = require('../utils/ApiError');
@@ -26,6 +26,16 @@ router.get(
   })
 );
 
+// Admin-only: provision a new account. No password is set by the
+// admin -- the new user completes setup via the password-reset flow.
+router.post(
+  '/',
+  authenticate,
+  requireRole('admin'),
+  validate(createUserSchema),
+  usersController.create
+);
+
 // Admin-only: change another user's role. Writes to role_audit_log.
 router.patch(
   '/:id/role',
@@ -34,5 +44,11 @@ router.patch(
   validate(updateRoleSchema),
   usersController.updateRole
 );
+
+// Admin-only: deactivate/reactivate an account. Deactivation revokes
+// all refresh tokens immediately; existing access tokens remain valid
+// until their own short expiry (see setUserActive for details).
+router.patch('/:id/deactivate', authenticate, requireRole('admin'), usersController.deactivate);
+router.patch('/:id/reactivate', authenticate, requireRole('admin'), usersController.reactivate);
 
 module.exports = router;
