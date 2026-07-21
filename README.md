@@ -49,12 +49,12 @@ Server starts on `PORT` (default 4000). Health check: `GET /health`.
 
 ## Endpoints (Sprint 1)
 
-| Method | Path                 | Auth         | Validated body  | Description                                       |
-| ------ | -------------------- | ------------ | --------------- | ------------------------------------------------- |
-| POST   | /api/v1/auth/login   | —            | email, password | Returns access + refresh token                    |
-| POST   | /api/v1/auth/refresh | —            | refreshToken    | Rotates a valid refresh token for a new pair      |
-| POST   | /api/v1/auth/logout  | —            | refreshToken    | Revokes a refresh token                           |
-| GET    | /api/v1/users/me     | Bearer token | —               | Returns the current user (demo of JWT middleware) |
+| Method | Path | Auth | Validated body | Description |
+|---|---|---|---|---|
+| POST | /api/v1/auth/login | — | email, password | Returns access + refresh token |
+| POST | /api/v1/auth/refresh | — | refreshToken | Rotates a valid refresh token for a new pair |
+| POST | /api/v1/auth/logout | — | refreshToken | Revokes a refresh token |
+| GET | /api/v1/users/me | Bearer token | — | Returns the current user (demo of JWT middleware) |
 
 ## Auth model
 
@@ -97,11 +97,5 @@ const requireRole = require('../middleware/requireRole');
 const validate = require('../middleware/validate');
 const { updateRoleSchema } = require('../validators/users.validators');
 
-router.patch(
-  '/users/:id/role',
-  authenticate,
-  requireRole('admin'),
-  validate(updateRoleSchema),
-  handler
-);
+router.patch('/users/:id/role', authenticate, requireRole('admin'), validate(updateRoleSchema), handler);
 ```

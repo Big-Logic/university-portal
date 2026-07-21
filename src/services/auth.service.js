@@ -1,11 +1,14 @@
-const prisma = require('../db/prisma');
-const ApiError = require('../utils/ApiError');
-const { comparePassword, hashPassword } = require('../utils/password');
-const { signAccessToken } = require('../utils/jwt');
-const { sendPasswordResetEmail } = require('../utils/emailer');
-const { generateRefreshToken, hashRefreshToken } = require('../utils/refreshToken');
-const { generateResetToken, hashResetToken } = require('../utils/resetToken');
-const env = require('../config/env');
+const prisma = require("../db/prisma");
+const ApiError = require("../utils/ApiError");
+const { comparePassword } = require("../utils/password");
+const { signAccessToken } = require("../utils/jwt");
+const { sendPasswordResetEmail } = require("../utils/emailer");
+const {
+  generateRefreshToken,
+  hashRefreshToken,
+} = require("../utils/refreshToken");
+const { generateResetToken, hashResetToken } = require("../utils/resetToken");
+const env = require("../config/env");
 
 const RESET_TOKEN_TTL_MINUTES = 30;
 
@@ -26,7 +29,9 @@ async function findUserByEmail(email) {
 }
 
 async function storeRefreshToken(userId, hash, clientLabel) {
-  const expiresAt = new Date(Date.now() + env.jwt.refreshExpiresInDays * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(
+    Date.now() + env.jwt.refreshExpiresInDays * 24 * 60 * 60 * 1000,
+  );
   await prisma.refresh_tokens.create({
     data: {
       user_id: userId,
@@ -40,18 +45,24 @@ async function storeRefreshToken(userId, hash, clientLabel) {
 async function login({ email, password, clientLabel }) {
   const user = await findUserByEmail(email);
   if (!user) {
-    throw ApiError.unauthorized('Invalid email or password', 'INVALID_CREDENTIALS');
+    throw ApiError.unauthorized(
+      "Invalid email or password",
+      "INVALID_CREDENTIALS",
+    );
   }
 
   const passwordMatches = await comparePassword(password, user.password_hash);
   if (!passwordMatches) {
-    throw ApiError.unauthorized('Invalid email or password', 'INVALID_CREDENTIALS');
+    throw ApiError.unauthorized(
+      "Invalid email or password",
+      "INVALID_CREDENTIALS",
+    );
   }
 
   if (!user.is_active) {
     throw ApiError.unauthorized(
-      'Inactive user account. Please contact support.',
-      'INACTIVE_ACCOUNT'
+      "Inactive user account. Please contact support.",
+      "INACTIVE_ACCOUNT",
     );
   }
 
@@ -85,7 +96,10 @@ async function refresh({ refreshToken, clientLabel }) {
     new Date(record.expires_at) < new Date() ||
     !record.users.is_active
   ) {
-    throw ApiError.unauthorized('Refresh token is invalid or expired', 'INVALID_REFRESH_TOKEN');
+    throw ApiError.unauthorized(
+      "Refresh token is invalid or expired",
+      "INVALID_REFRESH_TOKEN",
+    );
   }
 
   // Rotate: revoke the old refresh token and issue a new one. This
@@ -135,39 +149,7 @@ async function forgotPassword({ email }) {
   // so the flow is testable end-to-end without real email
   // infrastructure. In production this must never leave the server --
   // the email is the only channel it should travel through.
-  return env.nodeEnv !== 'production' ? { devResetToken: raw } : undefined;
+  return env.nodeEnv !== "production" ? { devResetToken: raw } : undefined;
 }
 
-async function resetPassword({ token, newPassword }) {
-  const hash = hashResetToken(token);
-
-  const record = await prisma.password_reset_tokens.findFirst({
-    where: { token_hash: hash },
-  });
-
-  if (!record || record.used_at || new Date(record.expires_at) < new Date()) {
-    throw ApiError.badRequest('Reset token is invalid or expired', 'INVALID_RESET_TOKEN');
-  }
-
-  const newHash = await hashPassword(newPassword);
-
-  await prisma.$transaction([
-    prisma.users.update({
-      where: { id: record.user_id },
-      data: { password_hash: newHash },
-    }),
-    prisma.password_reset_tokens.update({
-      where: { id: record.id },
-      data: { used_at: new Date() },
-    }),
-    // Changing the password invalidates every existing session -- if
-    // an account was compromised, this locks the old session out too,
-    // not just the password.
-    prisma.refresh_tokens.updateMany({
-      where: { user_id: record.user_id, revoked_at: null },
-      data: { revoked_at: new Date() },
-    }),
-  ]);
-}
-
-module.exports = { login, refresh, logout, findUserByEmail, forgotPassword, resetPassword };
+module.exports = { login, refresh, logout, findUserByEmail, forgotPassword };

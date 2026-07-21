@@ -9,15 +9,15 @@
 // sure DATABASE_URL includes ?sslmode=require -- that's independent
 // of DATABASE_SSL_MODE in .env, which only controls the application's
 // own runtime connection (see src/db/prisma.js).
-import 'dotenv/config';
-import { defineConfig, env } from 'prisma/config';
+import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
 
 export default defineConfig({
-  schema: 'prisma/schema.prisma',
+  schema: "prisma/schema.prisma",
   migrations: {
-    path: 'prisma/migrations',
+    path: "prisma/migrations",
   },
   datasource: {
-    url: env('DATABASE_URL'),
+    url: env("DATABASE_URL"),
   },
 });
