@@ -13,19 +13,14 @@ module.exports = {
   nodeEnv: process.env.NODE_ENV || "development",
 
   db: {
-    connectionString: required("DATABASE_URL"),
-    // Prisma 7 uses node-pg directly and is strict about TLS by
-    // default. Modes:
-    //   'disable'     no SSL -- local Postgres with SSL off
-    //   'no-verify'   SSL on, but accept any cert -- quick unblock,
-    //                 vulnerable to MITM, avoid beyond local dev
-    //   'verify-full' SSL on, cert verified against a CA -- required
-    //                 for managed providers (Aiven, RDS, etc.) that
-    //                 sign with their own CA. Needs sslCaPath below.
-    sslMode: process.env.DATABASE_SSL_MODE || "disable",
-    // Path to the provider's CA certificate (e.g. Aiven's ca.pem,
-    // downloaded from their console). Required when sslMode is
-    // 'verify-full'.
+    connectionString: required('DATABASE_URL'),
+    // 'disable' = no SSL (local dev). 'no-verify' = SSL but accept any
+    // cert (quick unblock only). 'verify-full' = SSL + verified against
+    // a CA -- required for managed providers (Aiven, RDS, etc.).
+    sslMode: process.env.DATABASE_SSL_MODE || 'disable',
+    // Preferred: raw PEM text in an env var, works on any host.
+    sslCaContent: process.env.DATABASE_SSL_CA_CONTENT || null,
+    // Fallback: a file path (local dev, or a platform's secret-file mount).
     sslCaPath: process.env.DATABASE_SSL_CA_PATH || null,
   },
 
