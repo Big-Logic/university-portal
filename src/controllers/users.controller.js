@@ -1,6 +1,7 @@
 const userService = require('../services/user.service');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
+const { toProfileData } = require('../utils/userProfile');
 
 function parseId(req) {
   const id = parseInt(req.params.id, 10);
@@ -9,8 +10,12 @@ function parseId(req) {
 }
 
 const create = asyncHandler(async (req, res) => {
-  const { email, full_name, role } = req.body;
-  const result = await userService.createUser({ email, fullName: full_name, roleName: role });
+  const { email, role } = req.body;
+  const result = await userService.createUser({
+    email,
+    profile: toProfileData(req.body),
+    roleName: role,
+  });
   res.status(201).json(result);
 });
 

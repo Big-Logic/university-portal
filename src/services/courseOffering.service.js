@@ -4,7 +4,9 @@ const ApiError = require('../utils/ApiError');
 const OFFERING_INCLUDE = {
   courses: true,
   terms: true,
-  users: { select: { id: true, full_name: true, email: true } },
+  users: {
+    select: { id: true, email: true, first_name: true, middle_name: true, last_name: true },
+  },
   rooms: true,
   meeting_times: true,
 };

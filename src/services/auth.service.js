@@ -19,7 +19,6 @@ async function findUserByEmail(email) {
     id: user.id,
     email: user.email,
     password_hash: user.password_hash,
-    full_name: user.full_name,
     is_active: user.is_active,
     role: user.roles.name,
   };
@@ -64,8 +63,6 @@ async function login({ email, password, clientLabel }) {
     refreshToken,
     user: {
       id: user.id,
-      email: user.email,
-      fullName: user.full_name,
       role: user.role,
     },
   };

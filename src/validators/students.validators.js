@@ -1,10 +1,11 @@
 const { z } = require('zod');
+const { profileFields } = require('./userProfile.validators');
 
 const STUDENT_STATUSES = ['active', 'inactive', 'graduated', 'withdrawn'];
 
 const createStudentSchema = z.object({
   email: z.string().email('Must be a valid email address'),
-  full_name: z.string().min(1, 'full_name is required').max(255),
+  ...profileFields,
   program_id: z.number().int().positive().optional(),
   admission_term_id: z.number().int().positive().optional(),
 });

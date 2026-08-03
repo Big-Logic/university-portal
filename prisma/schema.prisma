@@ -159,11 +159,20 @@ model users {
   id                                              Int                     @id @default(autoincrement())
   email                                           String                  @unique @db.VarChar(255)
   password_hash                                   String                  @db.VarChar(255)
-  full_name                                       String                  @db.VarChar(255)
   role_id                                         Int
   is_active                                       Boolean                 @default(true)
   created_at                                      DateTime                @default(now()) @db.Timestamptz(6)
   updated_at                                      DateTime                @default(now()) @db.Timestamptz(6)
+  first_name                                      String                  @db.VarChar(100)
+  middle_name                                     String?                 @db.VarChar(100)
+  last_name                                       String                  @db.VarChar(100)
+  avatar_url                                      String?
+  phone                                           String?                 @db.VarChar(30)
+  date_of_birth                                   DateTime?               @db.Date
+  timezone                                        String                  @default("UTC") @db.VarChar(64)
+  locale                                          String                  @default("en") @db.VarChar(10)
+  last_login_at                                   DateTime?               @db.Timestamptz(6)
+  password_changed_at                             DateTime?               @db.Timestamptz(6)
   course_offerings                                course_offerings[]
   meeting_times                                   meeting_times[]
   password_reset_tokens                           password_reset_tokens[]
