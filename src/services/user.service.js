@@ -1,13 +1,16 @@
 const prisma = require('../db/prisma');
 const ApiError = require('../utils/ApiError');
 const { hashPassword, generateRandomPassword } = require('../utils/password');
+const { formatUserProfile } = require('../utils/userProfile');
 
 // Generous window for a remote DB (Aiven, etc.) -- Prisma's default
 // maxWait (2s) assumes a fast/local connection and can be too tight
 // once TLS handshake + network latency are in the mix.
 const TX_OPTIONS = { maxWait: 10000, timeout: 15000 };
 
-async function createUser({ email, fullName, roleName }) {
+// `profile` is the validated set of users-table profile columns
+// (first_name, last_name, phone, ...) -- see utils/userProfile.js.
+async function createUser({ email, profile, roleName }) {
   const role = await prisma.roles.findUnique({ where: { name: roleName } });
   if (!role) {
     throw ApiError.badRequest(`Unknown role: ${roleName}`);
@@ -17,13 +20,11 @@ async function createUser({ email, fullName, roleName }) {
   const passwordHash = await hashPassword(generatedPassword);
 
   const user = await prisma.users.create({
-    data: { email, full_name: fullName, password_hash: passwordHash, role_id: role.id },
+    data: { email, ...profile, password_hash: passwordHash, role_id: role.id },
   });
 
   return {
-    id: user.id,
-    email: user.email,
-    fullName: user.full_name,
+    ...formatUserProfile(user),
     role: roleName,
     generatedPassword,
   };
@@ -53,7 +54,7 @@ async function setUserActive(targetUserId, isActive) {
     });
   }
 
-  return { id: updated.id, email: updated.email, is_active: updated.is_active };
+  return { id: updated.id, email: updated.email, isActive: updated.is_active };
 }
 
 async function updateUserRole({ targetUserId, newRoleName, changedByUserId }) {

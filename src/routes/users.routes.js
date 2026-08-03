@@ -7,6 +7,7 @@ const { createUserSchema, updateRoleSchema } = require('../validators/users.vali
 const asyncHandler = require('../utils/asyncHandler');
 const prisma = require('../db/prisma');
 const ApiError = require('../utils/ApiError');
+const { USER_PROFILE_SELECT, formatUserProfile } = require('../utils/userProfile');
 
 const router = express.Router();
 
@@ -18,11 +19,15 @@ router.get(
   asyncHandler(async (req, res) => {
     const user = await prisma.users.findUnique({
       where: { id: req.user.id },
-      include: { roles: true },
+      // select, not include: keeps password_hash out of the row entirely.
+      select: { ...USER_PROFILE_SELECT, roles: { select: { name: true } } },
     });
     if (!user) throw ApiError.notFound('User not found');
 
-    res.json({ id: user.id, email: user.email, fullName: user.full_name, role: user.roles.name });
+    res.json({
+      ...formatUserProfile(user),
+      role: user.roles.name,
+    });
   })
 );
 

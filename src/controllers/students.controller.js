@@ -1,6 +1,7 @@
 const studentService = require('../services/student.service');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
+const { toProfileData } = require('../utils/userProfile');
 
 function parseId(req) {
   const id = parseInt(req.params.id, 10);
@@ -16,10 +17,10 @@ function parseOptionalIntQuery(value, label) {
 }
 
 const create = asyncHandler(async (req, res) => {
-  const { email, full_name, program_id, admission_term_id } = req.body;
+  const { email, program_id, admission_term_id } = req.body;
   const result = await studentService.createStudent({
     email,
-    fullName: full_name,
+    profile: toProfileData(req.body),
     programId: program_id,
     admissionTermId: admission_term_id,
   });

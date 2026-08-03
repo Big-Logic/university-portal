@@ -97,6 +97,19 @@ router.patch(
 
 If a new endpoint needs to create or modify a student's account, model it against `students.controller.js` / `student.service.js`, not `users.*`.
 
+## User profile fields
+
+There is no `full_name` column — names are stored in parts (`first_name`,
+optional `middle_name`, `last_name`), alongside `avatar_url`, `phone`,
+`date_of_birth`, `timezone`, `locale`, `last_login_at`,
+`password_changed_at`.
+
+- Responses return the name **parts** (`firstName` / `middleName` / `lastName`) and never a composed display string — assembling one is the client's job. Don't reintroduce a `fullName`/`full_name` field.
+- `src/utils/userProfile.js` owns everything that crosses the DB/wire boundary for these columns: `USER_PROFILE_SELECT` (the Prisma select), `formatUserProfile` (the response shape), and `toProfileData` (narrows a validated body to writable columns, so nothing else rides along into a Prisma write). The select and the formatter list the same columns — `id`, `email`, the names, the profile fields, `is_active`, `last_login_at`, `created_at`, `updated_at` — and must be changed together. `role` is not among them: it lives on the related `roles` row, so callers needing it add `roles: { select: { name: true } }` and merge it in themselves (see `/users/me`).
+- A user embedded in another resource goes under a `user` key rather than being flattened in — see `formatStudent`, where a flat merge would make `id` and `createdAt` ambiguous between the student record and its account.
+- `src/validators/userProfile.validators.js` holds the shared Zod fields both `/users` and `/students` spread into their create schemas — the two resources stay separate, but the profile columns they write are identical. `date_of_birth` arrives as `"YYYY-MM-DD"` and is returned the same way (like meeting times' `"HH:MM"`), parsed at UTC midnight so the stored day can't shift.
+- `last_login_at` is written by `auth.service.login` (best-effort — a failed write must not fail an authenticated login); `password_changed_at` by `resetPassword`, inside its existing transaction. Neither is client-settable.
+
 ## Course offerings — DB-enforced rules
 
 Room/instructor double-booking, the online-delivery/room `CHECK`, and the

@@ -2,6 +2,7 @@ const prisma = require('../db/prisma');
 // const crypto = require('crypto');
 const ApiError = require('../utils/ApiError');
 const { hashPassword, generateRandomPassword } = require('../utils/password');
+const { USER_PROFILE_SELECT, formatUserProfile } = require('../utils/userProfile');
 // const env = require('../config/env');
 
 // Generous window for a remote DB (Aiven, etc.) -- see user.service.js
@@ -9,25 +10,30 @@ const { hashPassword, generateRandomPassword } = require('../utils/password');
 const TX_OPTIONS = { maxWait: 10000, timeout: 15000 };
 
 const STUDENT_INCLUDE = {
-  users: { select: { id: true, email: true, full_name: true, is_active: true } },
+  users: { select: USER_PROFILE_SELECT },
   programs: true,
   terms: true,
 };
 
+// The account lives under `user` rather than being flattened in: a
+// student record and its user row each have their own id and their own
+// timestamps (the users row updates independently of this one), so
+// merging them would make `id` and `createdAt` ambiguous.
 function formatStudent(student) {
   return {
     id: student.id,
     studentId: student.student_id,
     status: student.status,
-    email: student.users.email,
-    fullName: student.users.full_name,
-    isActive: student.users.is_active,
+    createdAt: student.created_at,
+    user: formatUserProfile(student.users),
     program: student.programs,
     admissionTerm: student.terms,
   };
 }
 
-async function createStudent({ email, fullName, programId, admissionTermId }) {
+// `profile` is the validated set of users-table profile columns -- see
+// utils/userProfile.js.
+async function createStudent({ email, profile, programId, admissionTermId }) {
   const role = await prisma.roles.findUnique({ where: { name: 'student' } });
 
   if (!role) {
@@ -44,7 +50,7 @@ async function createStudent({ email, fullName, programId, admissionTermId }) {
   // start given what building the role-update endpoint taught us.
   const student = await prisma.$transaction(async (tx) => {
     const user = await tx.users.create({
-      data: { email, full_name: fullName, password_hash: passwordHash, role_id: role.id },
+      data: { email, ...profile, password_hash: passwordHash, role_id: role.id },
     });
 
     return tx.students.create({
