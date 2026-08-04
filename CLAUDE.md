@@ -57,6 +57,13 @@ routes/ (express.Router, one file per resource, mounted in routes/index.js)
   -> services/ (business logic, talks to Prisma directly)
 ```
 
+A service is either a single `<name>.service.js` file or, once it grows,
+a `<name>.service/` directory: one operation per file, shared internals
+together in `helpers.js`, and an `index.js` re-exporting the public
+surface (`auth.service/` is the example — `storeRefreshToken` lives in
+its `helpers.js` and is deliberately not re-exported). Consumers
+`require('../services/<name>.service')` either way.
+
 - **`src/app.js`** wires helmet, cors, morgan, `express.json()`, mounts all routes under `/api/v1`, a catch-all 404, then the central `errorHandler`.
 - **`authenticate`** (`src/middleware/authenticate.js`) verifies the JWT from `Authorization: Bearer <token>` and sets `req.user = { id, role }`. Stateless — no DB lookup per request.
 - **`requireRole(...roles)`** (`src/middleware/requireRole.js`) gates a route to specific roles; must run after `authenticate`.
