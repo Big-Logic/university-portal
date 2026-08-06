@@ -2,19 +2,20 @@
 // and the wire lives here, so the selects, the write payloads and the
 // response shapes can't drift apart.
 
-// Columns a create/update may set from a request body. Anything not
-// listed is server-owned (password_hash, role_id, is_active,
-// last_login_at, password_changed_at) and is set explicitly by the
-// service that owns that behaviour.
+// Columns a create/update may set from a request body, paired with the
+// camelCase key they arrive under. Anything not listed is server-owned
+// (password_hash, role_id, is_active, last_login_at,
+// password_changed_at) and is set explicitly by the service that owns
+// that behaviour.
 const WRITABLE_PROFILE_FIELDS = [
-  'first_name',
-  'middle_name',
-  'last_name',
-  'avatar_url',
-  'phone',
-  'date_of_birth',
-  'timezone',
-  'locale',
+  ['first_name', 'firstName'],
+  ['middle_name', 'middleName'],
+  ['last_name', 'lastName'],
+  ['avatar_url', 'avatarUrl'],
+  ['phone', 'phone'],
+  ['date_of_birth', 'dateOfBirth'],
+  ['timezone', 'timezone'],
+  ['locale', 'locale'],
 ];
 
 // Read-side mirror of formatUserProfile below -- the two are meant to
@@ -65,10 +66,16 @@ function formatUserProfile(user) {
 
 // Narrow a (already validated) request body down to the profile
 // columns, so nothing else can ride along into a Prisma write.
+//
+// Reads the camelCase key first, then falls back to the column name
+// itself for resources still on snake_case bodies (/students). The
+// validators only ever let one spelling through, so the fallback can't
+// mix formats -- drop it once /students migrates.
 function toProfileData(body) {
   const data = {};
-  for (const field of WRITABLE_PROFILE_FIELDS) {
-    if (body[field] !== undefined) data[field] = body[field];
+  for (const [column, key] of WRITABLE_PROFILE_FIELDS) {
+    const value = body[key] !== undefined ? body[key] : body[column];
+    if (value !== undefined) data[column] = value;
   }
   return data;
 }

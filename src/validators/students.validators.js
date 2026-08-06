@@ -1,11 +1,12 @@
 const { z } = require('zod');
-const { profileFields } = require('./userProfile.validators');
+// Still on snake_case request bodies -- see legacyProfileFields.
+const { legacyProfileFields } = require('./userProfile.validators');
 
 const STUDENT_STATUSES = ['active', 'inactive', 'graduated', 'withdrawn'];
 
 const createStudentSchema = z.object({
   email: z.string().email('Must be a valid email address'),
-  ...profileFields,
+  ...legacyProfileFields,
   program_id: z.number().int().positive().optional(),
   admission_term_id: z.number().int().positive().optional(),
 });

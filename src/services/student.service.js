@@ -5,8 +5,9 @@ const { hashPassword, generateRandomPassword } = require('../utils/password');
 const { USER_PROFILE_SELECT, formatUserProfile } = require('../utils/userProfile');
 // const env = require('../config/env');
 
-// Generous window for a remote DB (Aiven, etc.) -- see user.service.js
-// for the full reasoning; same trade-off applies here.
+// Generous window for a remote DB (Aiven, etc.) -- see
+// user.service/user.updateUserRole.js for the full reasoning; same
+// trade-off applies here.
 const TX_OPTIONS = { maxWait: 10000, timeout: 15000 };
 
 const STUDENT_INCLUDE = {

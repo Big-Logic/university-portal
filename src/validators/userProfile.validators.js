@@ -17,18 +17,30 @@ const isoDate = z
   .refine((value) => isRealCalendarDate(value), { error: 'Must be a real calendar date' })
   .transform((value) => new Date(`${value}T00:00:00Z`));
 
-// Shared by /users and /students: both create a row in `users`, so both
-// accept the same profile fields even though they are otherwise
-// deliberately separate resources. Lengths mirror the SQL column widths.
-const nameFields = {
+// The profile fields any resource that writes a `users` row accepts.
+// Request bodies are camelCase, matching what responses already emit;
+// the snake_case column names stay behind utils/userProfile.js.
+// Lengths mirror the SQL column widths.
+const profileFields = {
+  firstName: z.string().trim().min(1, 'firstName is required').max(100),
+  middleName: z.string().trim().max(100).optional(),
+  lastName: z.string().trim().min(1, 'lastName is required').max(100),
+  // Everything below is nullable or defaulted in the database, so all
+  // of it is optional on create.
+  avatarUrl: z.string().url('avatarUrl must be a valid URL').optional(),
+  phone: z.string().trim().min(1).max(30).optional(),
+  dateOfBirth: isoDate.optional(),
+  timezone: z.string().trim().min(1).max(64).optional(),
+  locale: z.string().trim().min(1).max(10).optional(),
+};
+
+// LEGACY: the same fields under their old snake_case names, still used
+// by /students. Delete this (and the snake_case fallback in
+// toProfileData) once /students moves to camelCase bodies too.
+const legacyProfileFields = {
   first_name: z.string().trim().min(1, 'first_name is required').max(100),
   middle_name: z.string().trim().max(100).optional(),
   last_name: z.string().trim().min(1, 'last_name is required').max(100),
-};
-
-// Everything here is nullable or defaulted in the database, so all of
-// it is optional on create.
-const optionalProfileFields = {
   avatar_url: z.string().url('avatar_url must be a valid URL').optional(),
   phone: z.string().trim().min(1).max(30).optional(),
   date_of_birth: isoDate.optional(),
@@ -36,6 +48,4 @@ const optionalProfileFields = {
   locale: z.string().trim().min(1).max(10).optional(),
 };
 
-const profileFields = { ...nameFields, ...optionalProfileFields };
-
-module.exports = { profileFields, nameFields, optionalProfileFields, isoDate };
+module.exports = { profileFields, legacyProfileFields, isoDate };
