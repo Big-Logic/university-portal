@@ -68,6 +68,7 @@ its `helpers.js` and is deliberately not re-exported). Consumers
 - **`authenticate`** (`src/middleware/authenticate.js`) verifies the JWT from `Authorization: Bearer <token>` and sets `req.user = { id, role }`. Stateless — no DB lookup per request.
 - **`requireRole(...roles)`** (`src/middleware/requireRole.js`) gates a route to specific roles; must run after `authenticate`.
 - **`validate(schema)`** (`src/middleware/validate.js`) runs a Zod `safeParse` on `req.body`, replaces it with the parsed/coerced value, and turns failures into a single `400 VALIDATION_ERROR` with per-field messages — controllers never do manual `if (!field)` checks.
+- **`validateQuery(schema)`** (`src/middleware/validateQuery.js`) does the same for the query string, but writes to **`req.validatedQuery`** — Express 5 defines `req.query` as a getter, so assigning to it is silently ignored and the controller would still see raw strings. List endpoints read `req.validatedQuery`; use `z.coerce` in the schema since every param arrives as a string.
 - **`errorHandler`** (`src/middleware/errorHandler.js`, mounted last) is the only place HTTP status/error-code mapping happens — see the Prisma section above for why the check order matters.
 - Errors are thrown as `ApiError` (`src/utils/ApiError.js`: `badRequest` / `unauthorized` / `forbidden` / `notFound` / `conflict`) from anywhere in the services/controllers and caught by `errorHandler`.
 - Controllers/services are wrapped with `asyncHandler` (`src/utils/asyncHandler.js`) so rejected promises reach `errorHandler` instead of hanging.
@@ -98,8 +99,9 @@ router.patch(
 
 `/api/v1/users` and `/api/v1/students` are two separate resources on purpose:
 
-- `POST /api/v1/users` is **staff-only** — it rejects `role: "student"` on both create and role-update.
+- `POST /api/v1/users` is **staff-only** — it rejects `role: "student"` on both create and role-update. `PATCH /users/:id/role` also refuses a student as the *subject* (`STUDENT_ROLE_IMMUTABLE`): promoting one to staff would strand its `students` profile.
 - `POST /api/v1/students` creates the user account **and** the student profile together, atomically, with an auto-generated `student_id`. There is no path that creates a bare student user without a profile, and no supported way to convert an existing staff account into a student.
+- `GET /api/v1/users` lists **staff only** — students are filtered out in `buildWhere`, and its `role` query param accepts staff roles only. `GET /users/:id` still resolves a student by id.
 - `DELETE /api/v1/students/:id` removes only the academic profile, never the underlying user account.
 
 If a new endpoint needs to create or modify a student's account, model it against `students.controller.js` / `student.service.js`, not `users.*`.
@@ -114,7 +116,8 @@ optional `middle_name`, `last_name`), alongside `avatar_url`, `phone`,
 - Responses return the name **parts** (`firstName` / `middleName` / `lastName`) and never a composed display string — assembling one is the client's job. Don't reintroduce a `fullName`/`full_name` field.
 - `src/utils/userProfile.js` owns everything that crosses the DB/wire boundary for these columns: `USER_PROFILE_SELECT` (the Prisma select), `formatUserProfile` (the response shape), and `toProfileData` (narrows a validated body to writable columns, so nothing else rides along into a Prisma write). The select and the formatter list the same columns — `id`, `email`, the names, the profile fields, `is_active`, `last_login_at`, `created_at`, `updated_at` — and must be changed together. `role` is not among them: it lives on the related `roles` row, so callers needing it add `roles: { select: { name: true } }` and merge it in themselves (see `/users/me`).
 - A user embedded in another resource goes under a `user` key rather than being flattened in — see `formatStudent`, where a flat merge would make `id` and `createdAt` ambiguous between the student record and its account.
-- `src/validators/userProfile.validators.js` holds the shared Zod fields both `/users` and `/students` spread into their create schemas — the two resources stay separate, but the profile columns they write are identical. `date_of_birth` arrives as `"YYYY-MM-DD"` and is returned the same way (like meeting times' `"HH:MM"`), parsed at UTC midnight so the stored day can't shift.
+- **Request bodies are camelCase**, matching what responses already emit — `firstName`, `dateOfBirth`, `avatarUrl`. Only `/users` has been migrated; `/students` still takes snake_case via `legacyProfileFields`, and `toProfileData` reads the camelCase key with a snake_case fallback so both work. When `/students` migrates, delete `legacyProfileFields` and that fallback together.
+- `src/validators/userProfile.validators.js` holds the shared Zod fields both `/users` and `/students` spread into their create schemas — the two resources stay separate, but the profile columns they write are identical. `dateOfBirth` arrives as `"YYYY-MM-DD"` and is returned the same way (like meeting times' `"HH:MM"`), parsed at UTC midnight so the stored day can't shift.
 - `last_login_at` is written by `auth.service.login` (best-effort — a failed write must not fail an authenticated login); `password_changed_at` by `resetPassword`, inside its existing transaction. Neither is client-settable.
 
 ## Course offerings — DB-enforced rules
