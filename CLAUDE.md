@@ -149,8 +149,31 @@ strings over the wire despite being `TIME` columns internally.
   ones, which is the case that matters.
 
 Outside of `NODE_ENV=production`, the response also includes `devResetToken`
-(the raw token) so the flow is testable without real email infrastructure —
-`src/utils/emailer.js` is the seam to swap in a real provider.
+(the raw token) so the flow is testable without sending mail.
+
+## Email
+
+`src/services/mail.service/` follows the usual service-directory shape: one
+message per file (each owning its own subject/text/html), transport and layout
+in `mail.helpers.js`, `index.js` exporting the four `send*` functions. Swapping
+providers is a change to `mail.helpers.js` alone — nodemailer over SMTP today,
+pointed at Mailtrap.
+
+- **`SMTP_HOST` unset → mail is off.** `deliver()` drops the message and returns
+  `false` without logging it. That's the local-dev and CI default (no sockets,
+  no noise); the reset flow stays testable through `devResetToken`.
+- **Sends are fire-and-forget — don't `await` them.** The four `send*` functions
+  are synchronous and return nothing; `deliverInBackground` runs the send after
+  the request has already returned, so a slow or dead SMTP hop can't add
+  latency to work that's already committed. Two attempts, then give up —
+  there's no queue, and a lost email is not a failed request.
+- That only stays safe because `deliverInBackground` attaches a `.catch`. A
+  floating promise that rejects **takes the Node process down**; if you add a
+  send that isn't routed through it, catch it yourself.
+- `APP_URL` is the frontend base that reset links point at, and is **required in
+  production** (`src/config/env.js`) — a link pointing nowhere fails silently.
+- Log lines carry the recipient and subject but never the body, which holds
+  reset links and temporary passwords.
 
 **A user holds at most one live reset token.** Issuing one deletes the
 previous (`auth.forgotPassword`), and setting a password deletes them all

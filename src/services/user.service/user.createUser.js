@@ -2,7 +2,7 @@ const prisma = require('../../db/prisma');
 const ApiError = require('../../utils/ApiError');
 const { hashPassword, generateRandomPassword } = require('../../utils/password');
 const { formatUserProfile } = require('../../utils/userProfile');
-const { sendNewAccountEmail } = require('../../utils/emailer');
+const { sendNewAccountEmail } = require('../mail.service');
 
 // `profile` is the validated set of users-table profile columns
 // (first_name, last_name, phone, ...) -- see utils/userProfile.js.
@@ -19,7 +19,7 @@ async function createUser({ email, profile, roleName }) {
     data: { email, ...profile, password_hash: passwordHash, role_id: role.id },
   });
 
-  await sendNewAccountEmail(user.email, generatedPassword);
+  sendNewAccountEmail(user.email, generatedPassword);
 
   return {
     ...formatUserProfile(user),

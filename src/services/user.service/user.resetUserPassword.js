@@ -1,5 +1,5 @@
 const { generateRandomPassword } = require('../../utils/password');
-const { sendTemporaryPasswordEmail } = require('../../utils/emailer');
+const { sendTemporaryPasswordEmail } = require('../mail.service');
 const { setUserPassword } = require('../../utils/credentials');
 const { findUserOrThrow } = require('./user.helpers');
 
@@ -16,7 +16,7 @@ async function resetUserPassword(targetUserId) {
   const generatedPassword = generateRandomPassword();
   const passwordChangedAt = await setUserPassword(targetUserId, generatedPassword);
 
-  await sendTemporaryPasswordEmail(user.email, generatedPassword);
+  sendTemporaryPasswordEmail(user.email, generatedPassword);
 
   return { id: user.id, email: user.email, generatedPassword, passwordChangedAt };
 }
