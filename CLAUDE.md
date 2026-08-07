@@ -94,6 +94,8 @@ router.patch(
 
 - **Access token**: JWT, short-lived (`JWT_ACCESS_EXPIRES_IN`, default 15m). Stateless, not stored server-side, not re-checked against the DB per request — a deactivated user's already-issued access token stays valid until natural expiry even though their refresh tokens are revoked immediately.
 - **Refresh token**: random string, stored **hashed** in `refresh_tokens`. Rotated on every use (old one revoked the instant a new one is issued); revocable early via logout.
+- **Setting a password goes through `setUserPassword` (`src/utils/credentials.js`) — the only implementation, used by all three paths** (`auth.resetPassword`, `user.changeOwnPassword`, `user.resetUserPassword`). In one transaction it writes `password_hash` + `password_changed_at`, revokes every refresh token, and **deletes every reset token for that user**. Don't hand-roll a password write: the point is that no route back into the account survives the old password.
+- Emails are normalised to lowercase by `emailField` (`src/validators/userProfile.validators.js`), which every email-accepting schema uses. `users_email_key` is a case-sensitive btree, so without it `Ada@uni.edu` and `ada@uni.edu` are separate accounts.
 
 ## User vs. student accounts — a deliberate hard boundary
 
@@ -136,11 +138,34 @@ strings over the wire despite being `TIME` columns internally.
 
 ## Password reset
 
-`forgot-password` always returns the same generic response regardless of
-whether the email exists (prevents account enumeration). Outside of
-`NODE_ENV=production`, the response also includes `devResetToken` (the raw
-token) so the flow is testable without real email infrastructure —
+`forgot-password` answers three cases two ways:
+
+- **unknown email** and **active account** — the same generic 200 message, so
+  the endpoint can't be used to test whether an address is registered.
+- **deactivated account** — `403 INACTIVE_ACCOUNT`. A deliberate, narrow
+  enumeration leak: it confirms a given address belongs to a *deactivated*
+  account, accepted so a locked-out user isn't left requesting resets that
+  silently go nowhere. Active accounts stay indistinguishable from unknown
+  ones, which is the case that matters.
+
+Outside of `NODE_ENV=production`, the response also includes `devResetToken`
+(the raw token) so the flow is testable without real email infrastructure —
 `src/utils/emailer.js` is the seam to swap in a real provider.
+
+**A user holds at most one live reset token.** Issuing one deletes the
+previous (`auth.forgotPassword`), and setting a password deletes them all
+(`setUserPassword`) — so an attacker-triggered link can't outlive the victim's
+own reset, and the table can't accumulate spent rows. `auth.resetPassword`
+claims a token with a conditional `updateMany` (`used_at: null` + not expired,
+then `count === 1`) rather than checking `used_at` and writing separately;
+the two aren't atomic, so concurrent requests with one token would both
+succeed. It is deliberately fail-closed: the token is spent even if the
+password write then fails.
+
+**Still open, by decision:** no rate limiting on `forgot-password`, and the
+known-email path does a DB write plus an email send while the unknown-email
+path returns immediately — a measurable timing side channel despite the
+identical response.
 
 ## Course/program archiving — not implemented
 

@@ -25,4 +25,17 @@ async function sendTemporaryPasswordEmail(email, temporaryPassword) {
   // TODO: replace with real email provider integration.
 }
 
-module.exports = { sendPasswordResetEmail, sendNewAccountEmail, sendTemporaryPasswordEmail };
+// Sent after a password actually changes. Carries no credential and
+// no link -- its whole job is to reach the owner if it wasn't them who
+// changed it. Placeholder, same as above.
+async function sendPasswordChangedEmail(email) {
+  console.log(`[email] Password changed for ${email}.`);
+  // TODO: replace with real email provider integration.
+}
+
+module.exports = {
+  sendPasswordResetEmail,
+  sendNewAccountEmail,
+  sendTemporaryPasswordEmail,
+  sendPasswordChangedEmail,
+};

@@ -1,7 +1,8 @@
 const { z } = require('zod');
+const { emailField } = require('./userProfile.validators');
 
 const loginSchema = z.object({
-  email: z.string().email('Must be a valid email address'),
+  email: emailField,
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -14,7 +15,7 @@ const logoutSchema = z.object({
 });
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email('Must be a valid email address'),
+  email: emailField,
 });
 
 const resetPasswordSchema = z.object({

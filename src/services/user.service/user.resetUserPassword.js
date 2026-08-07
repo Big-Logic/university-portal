@@ -1,6 +1,7 @@
 const { generateRandomPassword } = require('../../utils/password');
 const { sendTemporaryPasswordEmail } = require('../../utils/emailer');
-const { findUserOrThrow, setUserPassword } = require('./user.helpers');
+const { setUserPassword } = require('../../utils/credentials');
+const { findUserOrThrow } = require('./user.helpers');
 
 // Admin resetting somebody else's password. The new password is
 // generated server-side rather than chosen by the admin -- same as
