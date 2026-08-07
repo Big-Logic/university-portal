@@ -17,6 +17,14 @@ const isoDate = z
   .refine((value) => isRealCalendarDate(value), { error: 'Must be a real calendar date' })
   .transform((value) => new Date(`${value}T00:00:00Z`));
 
+// Every place an email is accepted -- login, forgot-password, and the
+// two create endpoints -- so they can't disagree on what counts as the
+// same address. Lowercased because `users_email_key` is a
+// case-sensitive btree: without this, Ada@uni.edu and ada@uni.edu are
+// two accounts, and a reset requested with the wrong casing finds
+// nothing and (correctly) says nothing.
+const emailField = z.string().trim().toLowerCase().email('Must be a valid email address');
+
 // The profile fields any resource that writes a `users` row accepts.
 // Request bodies are camelCase, matching what responses already emit;
 // the snake_case column names stay behind utils/userProfile.js.
@@ -48,4 +56,4 @@ const legacyProfileFields = {
   locale: z.string().trim().min(1).max(10).optional(),
 };
 
-module.exports = { profileFields, legacyProfileFields, isoDate };
+module.exports = { emailField, profileFields, legacyProfileFields, isoDate };

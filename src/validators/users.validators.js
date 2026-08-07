@@ -1,5 +1,5 @@
 const { z } = require('zod');
-const { profileFields } = require('./userProfile.validators');
+const { emailField, profileFields } = require('./userProfile.validators');
 
 const VALID_ROLES = ['student', 'faculty', 'registrar', 'finance', 'admin'];
 
@@ -9,7 +9,7 @@ const VALID_ROLES = ['student', 'faculty', 'registrar', 'finance', 'admin'];
 const STAFF_ROLES = VALID_ROLES.filter((r) => r !== 'student');
 
 const createUserSchema = z.object({
-  email: z.string().email('Must be a valid email address'),
+  email: emailField,
   ...profileFields,
   role: z.enum(STAFF_ROLES, { error: `role must be one of: ${STAFF_ROLES.join(', ')}` }),
 });

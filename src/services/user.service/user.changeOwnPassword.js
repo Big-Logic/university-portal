@@ -1,6 +1,8 @@
 const ApiError = require('../../utils/ApiError');
 const { comparePassword } = require('../../utils/password');
-const { findUserOrThrow, setUserPassword } = require('./user.helpers');
+const { setUserPassword } = require('../../utils/credentials');
+const { sendPasswordChangedEmail } = require('../../utils/emailer');
+const { findUserOrThrow } = require('./user.helpers');
 
 // Self-service: the caller supplies the new password and it applies to
 // their own account only -- the route takes the id from the token, so
@@ -22,6 +24,10 @@ async function changeOwnPassword(userId, { currentPassword, newPassword }) {
   }
 
   const passwordChangedAt = await setUserPassword(userId, newPassword);
+
+  // Tells the owner their password moved -- the signal that matters if
+  // it wasn't them who moved it.
+  await sendPasswordChangedEmail(user.email);
 
   // Revoking every refresh token logs this session out too, so the
   // client has to sign in again with the new password.
