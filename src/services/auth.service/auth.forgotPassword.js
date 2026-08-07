@@ -2,7 +2,7 @@ const prisma = require('../../db/prisma');
 const env = require('../../config/env');
 const ApiError = require('../../utils/ApiError');
 const TX_OPTIONS = require('../../db/txOptions');
-const { sendPasswordResetEmail } = require('../../utils/emailer');
+const { sendPasswordResetEmail } = require('../mail.service');
 const { generateResetToken } = require('../../utils/resetToken');
 const { findUserByEmail } = require('./auth.helpers');
 
@@ -48,7 +48,10 @@ async function forgotPassword({ email }) {
     TX_OPTIONS
   );
 
-  await sendPasswordResetEmail(user.email, raw);
+  // Not awaited: the send runs in the background, so a slow SMTP hop
+  // doesn't hold the response open. Nothing here could act on a
+  // failure anyway -- the reply has to stay generic either way.
+  sendPasswordResetEmail(user.email, raw);
 
   // Only surface the raw token directly in non-production environments,
   // so the flow is testable end-to-end without real email

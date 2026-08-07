@@ -1,7 +1,7 @@
 const prisma = require('../../db/prisma');
 const ApiError = require('../../utils/ApiError');
 const { setUserPassword } = require('../../utils/credentials');
-const { sendPasswordChangedEmail } = require('../../utils/emailer');
+const { sendPasswordChangedEmail } = require('../mail.service');
 const { hashResetToken } = require('../../utils/resetToken');
 
 const INVALID_TOKEN = ['Reset token is invalid or expired', 'INVALID_RESET_TOKEN'];
@@ -47,7 +47,7 @@ async function resetPassword({ token, newPassword }) {
   // tokens for this user -- see utils/credentials.js.
   await setUserPassword(record.user_id, newPassword);
 
-  await sendPasswordChangedEmail(record.users.email);
+  sendPasswordChangedEmail(record.users.email);
 }
 
 module.exports = resetPassword;

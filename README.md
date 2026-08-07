@@ -137,12 +137,17 @@ Notes on course offerings:
   meeting time, then GET it back) actually returns what you sent, since
   this conversion couldn't be tested against a live Prisma Client here.
 
-Note on `forgot-password`: it always returns the same generic response whether
-or not the email exists, to avoid leaking which accounts are real. In
-non-production environments the response also includes the raw reset token
-directly (`devResetToken`), so the flow is testable without a real email
-provider — swap `src/utils/emailer.js` for a real provider before production,
-and that dev-token field disappears automatically (`NODE_ENV=production`).
+Note on `forgot-password`: unknown emails and active accounts get the same
+generic response, to avoid leaking which accounts are real (a deactivated
+account gets `403 INACTIVE_ACCOUNT`). In non-production environments the
+response also includes the raw reset token directly (`devResetToken`), so the
+flow is testable without sending mail — that field disappears automatically
+under `NODE_ENV=production`.
+
+Email goes through `src/services/mail.service/`. With `SMTP_HOST` unset no mail
+is sent and nothing is logged — the local-dev and CI default; set the Mailtrap
+(or any SMTP) credentials from `.env.example` to send for real. `APP_URL` is
+what reset links point at, and is required in production.
 
 ## Auth model
 
